@@ -10,8 +10,10 @@
 
 #include "stepper/stepper_hw.h"
 #include "stepper/axis.h"
-#include "stepper/sync_motion.h"
+#include "stepper/joint_mapper.h"
 #include "stepper/homing_control.h"
+
+#include "sts_servo/sts_manager.h"
 
 typedef struct {
     AppMode_t mode;
@@ -40,12 +42,16 @@ HAL_StatusTypeDef app_init(void)
         return HAL_ERROR;
     }
 
-    if (sync_motion_init() != HAL_OK) {
+    if (joint_mapper_init() != HAL_OK) {
         app_enter_error();
         return HAL_ERROR;
     }
 
     if (homing_control_init() != HAL_OK) {
+        app_enter_error();
+        return HAL_ERROR;
+    }
+    if (sts_manager_init() != HAL_OK) {
         app_enter_error();
         return HAL_ERROR;
     }
@@ -68,15 +74,22 @@ HAL_StatusTypeDef app_update(void)
         /* 何もしない */
         break;
 
-    case APP_MODE_SYNC_MOTION:
-        if (sync_motion_update() != HAL_OK) {
+//    case APP_MODE_SYNC_MOTION:
+//        if (() != HAL_OK) {
+//            app_enter_error();
+//            return HAL_ERROR;
+//        }
+//        break;
+    case APP_MODE_JOINT_CONTROL:
+        /*
+         * joint_mapper は目標設定時に axis へ target_step を渡すだけ。
+         * axis_update_all() は TIM6 割り込みなど、別の周期処理で呼ぶ想定。
+         * ここでは特に何もしない。
+         */
+        if (axis_update_all() != HAL_OK) {
             app_enter_error();
             return HAL_ERROR;
         }
-        if (axis_update_all() != HAL_OK) {
-			app_enter_error();
-			return HAL_ERROR;
-		}
         break;
 
     case APP_MODE_HOMING:
@@ -110,29 +123,42 @@ HAL_StatusTypeDef app_start_homing_all(void)
     }
 
     /* 通常動作中なら必要に応じて停止 */
-    if (sync_motion_stop_all() != HAL_OK) {
+    if (joint_mapper_stop_all() != HAL_OK) {
         app_enter_error();
         return HAL_ERROR;
     }
 
     g_app_state.mode = APP_MODE_HOMING;
-    g_app_state.homing_seq_state = APP_HOMING_SEQ_AXIS1_START;
+    g_app_state.homing_seq_state = APP_HOMING_SEQ_AXIS456_START;
 
     return HAL_OK;
 }
 
-HAL_StatusTypeDef app_set_mode_sync_motion(void)
+HAL_StatusTypeDef app_set_joint_target_rad(float q1_rad,
+                                           float q2_rad,
+                                           float q3_rad,
+                                           float dq_max_rad_s,
+                                           float ddq_max_rad_s2)
 {
     if (g_app_state.initialized == false) {
         return HAL_ERROR;
     }
 
     if (g_app_state.mode == APP_MODE_HOMING) {
-        /* 原点復帰中は勝手に切り替えない方が安全 */
         return HAL_BUSY;
     }
 
-    g_app_state.mode = APP_MODE_SYNC_MOTION;
+    if (g_app_state.mode == APP_MODE_ERROR) {
+        return HAL_ERROR;
+    }
+
+    g_app_state.mode = APP_MODE_JOINT_CONTROL;
+
+//    return joint_mapper_set_target_rad(q1_rad,
+//                                       q2_rad,
+//                                       q3_rad,
+//                                       dq_max_rad_s,
+//                                       ddq_max_rad_s2);
     return HAL_OK;
 }
 
@@ -147,6 +173,35 @@ HAL_StatusTypeDef app_set_mode_idle(void)
 
     return HAL_OK;
 }
+
+HAL_StatusTypeDef app_set_mode_joint_control(void)
+{
+    if (g_app_state.initialized == false) {
+        return HAL_ERROR;
+    }
+
+    if (g_app_state.mode == APP_MODE_HOMING) {
+        return HAL_BUSY;
+    }
+
+    g_app_state.mode = APP_MODE_JOINT_CONTROL;
+    return HAL_OK;
+}
+
+//HAL_StatusTypeDef app_set_mode_sync_motion(void)
+//{
+//    if (g_app_state.initialized == false) {
+//        return HAL_ERROR;
+//    }
+//
+//    if (g_app_state.mode == APP_MODE_HOMING) {
+//        /* 原点復帰中は勝手に切り替えない方が安全 */
+//        return HAL_BUSY;
+//    }
+//
+//    g_app_state.mode = APP_MODE_SYNC_MOTION;
+//    return HAL_OK;
+//}
 
 HAL_StatusTypeDef app_get_mode(AppMode_t *mode)
 {
@@ -175,6 +230,26 @@ static HAL_StatusTypeDef app_update_homing_sequence(void)
     switch (g_app_state.homing_seq_state) {
 
     case APP_HOMING_SEQ_IDLE:
+        break;
+
+    case APP_HOMING_SEQ_AXIS456_START:
+    	if(sts_manager_start_homing_all() != HAL_OK){
+    		return HAL_ERROR;
+    	}
+        g_app_state.homing_seq_state = APP_HOMING_SEQ_AXIS456_WAIT;
+        break;
+
+    case APP_HOMING_SEQ_AXIS456_WAIT:
+    	if(sts_manager_update_homing_all() != HAL_OK){
+    		return HAL_ERROR;
+    	}
+    	if(sts_manager_is_homing_done(&done) != HAL_OK){
+    		return HAL_ERROR;
+    	}
+    	if(done){
+    		done = false;
+    		g_app_state.homing_seq_state = APP_HOMING_SEQ_AXIS1_START;
+    	}
         break;
 
     case APP_HOMING_SEQ_AXIS1_START:

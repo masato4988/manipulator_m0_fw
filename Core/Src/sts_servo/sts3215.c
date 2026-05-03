@@ -246,3 +246,59 @@ sts_status_t sts3215_set_goal_position(sts3215_t *servo, uint16_t position){
             STS_ADDR_GOAL_POSITION,
             position);
 }
+
+sts_status_t sts3215_stop(sts3215_t *servo)
+{
+    uint16_t present_position;
+
+    if (servo == NULL || servo->bus == NULL) {
+        return STS_ERROR;
+    }
+
+    if (sts3215_read_u16(
+            servo,
+            STS_ADDR_PRESENT_POSITION,
+            &present_position) != STS_OK) {
+        return STS_ERROR;
+    }
+
+    return sts3215_set_goal_position(
+            servo,
+            present_position);
+}
+
+sts_status_t sts3215_is_reached(sts3215_t *servo,
+                                uint16_t target_position,
+                                uint16_t tolerance,
+                                bool *reached)
+{
+    uint16_t present_position;
+    int32_t error;
+
+    if (servo == NULL || servo->bus == NULL || reached == NULL) {
+        return STS_ERROR;
+    }
+
+    sts_status_t status = sts3215_read_u16(
+            servo,
+            STS_ADDR_PRESENT_POSITION,
+            &present_position);
+
+    if (status != STS_OK) {
+        return status;
+    }
+
+    error = (int32_t)target_position - (int32_t)present_position;
+
+    if (error < 0) {
+        error = -error;
+    }
+
+    if ((uint16_t)error <= tolerance) {
+        *reached = true;
+    } else {
+        *reached = false;
+    }
+
+    return STS_OK;
+}

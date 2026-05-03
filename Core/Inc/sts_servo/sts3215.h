@@ -45,5 +45,11 @@ sts_status_t sts3215_write_u16(sts3215_t *servo, uint8_t address, uint16_t value
 /* 便利関数 */
 sts_status_t sts3215_set_torque_enable(sts3215_t *servo, bool enable);
 sts_status_t sts3215_set_goal_position(sts3215_t *servo, uint16_t position);
+sts_status_t sts3215_stop(sts3215_t *servo);
+
+sts_status_t sts3215_is_reached(sts3215_t *servo,
+                                uint16_t target_position,
+                                uint16_t tolerance,
+                                bool *reached);
 
 #endif /* INC_STS_SERVO_STS3215_H_ */

@@ -27,7 +27,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <math.h>
-
+#include <stepper/joint_mapper.h>
 #include "stepper/stepper_hw.h"
 //#include "axis.h"
 //#include "sync_motion.h"
@@ -35,8 +35,6 @@
 #include "math_utils.h"
 #include "app.h"
 #include "stepper/homing_control.h"
-#include "stepper/sync_motion.h"
-
 #include "sts_servo/sts_bus.h"
 #include "sts_servo/sts3215.h"
 /* USER CODE END Includes */
@@ -263,10 +261,12 @@ int main(void)
   /* USER CODE BEGIN 2 */
 //  if(stepper_init() 				!= HAL_OK) Error_Handler();
 //  if(axis_init() 					!= HAL_OK) Error_Handler();
+  if (app_init() 					!= HAL_OK) Error_Handler();
 
   if (axis_control_timer_init() 	!= HAL_OK) Error_Handler();
   if (HAL_TIM_Base_Start_IT(&htim6) != HAL_OK) Error_Handler();
-  if (app_init() 					!= HAL_OK) Error_Handler();
+//  HAL_Delay(1000);
+//  printf("\n initialize \r\n");
 
 
   printf("\n\n\n boot\r\n");
@@ -275,35 +275,37 @@ int main(void)
 
 
 
-//  printf("start_homing\r\n");
-//  app_start_homing_all();
-//  HomingState_t state1;
-//  HomingState_t state2;
-//  HomingState_t state3;
-//  AppHomingSeqState_t state;
-//  while(1){//
-////	  app_get_homing_seq_state(&state);
-//	  homing_control_get_state(1, &state1);
-//	  homing_control_get_state(1, &state2);
-//	  homing_control_get_state(1, &state3);
+  printf("start_homing\r\n");
+  app_start_homing_all();
+  HomingState_t state1;
+  HomingState_t state2;
+  HomingState_t state3;
+  AppHomingSeqState_t state;
+  while(1){//
 //	  app_get_homing_seq_state(&state);
-//	  printf("%d %d %d\r\n",state1,state2,state3);
-//
-//	  if(state == APP_HOMING_SEQ_IDLE){
-//		  printf("done\r\n");
-//		  break;
-//	  }else if(state == APP_HOMING_SEQ_ERROR){
-//		  printf("homing_error\r\n");
-//		  Error_Handler();
-//	  }
-//	  delay_us(100 * 1000);
-//  }
-//  if(app_set_mode_sync_motion() != HAL_OK){
-//	  Error_Handler();
-//  }
+	  homing_control_get_state(1, &state1);
+	  homing_control_get_state(1, &state2);
+	  homing_control_get_state(1, &state3);
+	  app_get_homing_seq_state(&state);
+	  printf("%d %d %d\r\n",state1,state2,state3);
+
+	  if(state == APP_HOMING_SEQ_IDLE){
+		  printf("done\r\n");
+		  break;
+	  }else if(state == APP_HOMING_SEQ_ERROR){
+		  printf("homing_error\r\n");
+		  Error_Handler();
+	  }
+	  delay_us(100 * 1000);
+  }
+  if(app_set_mode_joint_control() != HAL_OK){
+	  Error_Handler();
+  }
 
 //  app_sts_test();
-  app_servo_move_test();
+
+//  app_servo_move_test();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -312,7 +314,7 @@ int main(void)
   {
 	  now = HAL_GetTick();
 
-	  if(now - polling1_tmp_last >= polling1_ms && 0){
+	  if(now - polling1_tmp_last >= polling1_ms){
 		  polling1_tmp_last = now;
 		  int32_t step1;
 		  int32_t step2;
@@ -331,7 +333,7 @@ int main(void)
 	  }
 
 
-	  if(now - polling3_tmp_last >= polling3_ms && 0){
+	  if(now - polling3_tmp_last >= polling3_ms){
 		  polling3_tmp_last = now;
 		  if(flag == 0){
 			  flag = 1;
@@ -345,9 +347,16 @@ int main(void)
 //			  {
 //			      Error_Handler();
 //			  }
-			  if (sync_motion_move_joint_target(deg_to_rad(0.0f), deg_to_rad(0.0f), deg_to_rad(0.0f),
-			                                 deg_to_rad(20.0f),
-											 deg_to_rad(20.0f)) != HAL_OK)
+//			  if (sync_motion_move_joint_target(deg_to_rad(0.0f), deg_to_rad(0.0f), deg_to_rad(0.0f),
+//			                                 deg_to_rad(20.0f),
+//											 deg_to_rad(20.0f)) != HAL_OK)
+//			  {
+//			      Error_Handler();
+//			  }
+			  if (joint_mapper_set_target_rad(deg_to_rad(0.0f), deg_to_rad(0.0f), deg_to_rad(0.0f),
+					                          deg_to_rad(0.0f), deg_to_rad(0.0f), deg_to_rad(0.0f),
+			                                  deg_to_rad(20.0f),
+											  deg_to_rad(20.0f)) != HAL_OK)
 			  {
 			      Error_Handler();
 			  }
@@ -364,9 +373,16 @@ int main(void)
 //			  {
 //			      Error_Handler();
 //			  }
-			  if (sync_motion_move_joint_target(deg_to_rad(45.0f), deg_to_rad(45.0f), deg_to_rad(45.0f),
-			                                 deg_to_rad(20.0f),
-											 deg_to_rad(20.0f)) != HAL_OK)
+//			  if (sync_motion_move_joint_target(deg_to_rad(45.0f), deg_to_rad(45.0f), deg_to_rad(45.0f),
+//			                                 deg_to_rad(20.0f),
+//											 deg_to_rad(20.0f)) != HAL_OK)
+//			  {
+//			      Error_Handler();
+//			  }
+			  if (joint_mapper_set_target_rad(deg_to_rad(0.0f), deg_to_rad(0.0f), deg_to_rad(0.0f),
+					                          deg_to_rad(45.0f), deg_to_rad(45.0f), deg_to_rad(45.0f),
+			                                  deg_to_rad(20.0f),
+											  deg_to_rad(20.0f)) != HAL_OK)
 			  {
 			      Error_Handler();
 			  }
