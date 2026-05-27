@@ -27,9 +27,11 @@ m3 = (q3 + (m2 * K_M2_TO_Q3)) / K_M3_TO_Q3
 */
 
 
-#include "stepper/joint_mapper.h"
+#include "joint_mapper.h"
 #include "stepper/axis.h"
+#include "stepper/stepper_hw.h"
 #include "sts_servo/sts_manager.h"
+#include "math_utils.h"
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -366,3 +368,30 @@ HAL_StatusTypeDef joint_mapper_stop_all(void)
 
     return HAL_OK;
 }
+
+HAL_StatusTypeDef joint_mapper_get_rad_all(float q_rad[JOINT_MAPPER_JOINT_COUNT]){
+	//stepper
+    int32_t step1;
+    int32_t step2;
+	int32_t step3;
+
+    uint16_t position_raw[STS_NUM];
+
+    if(stepper_get_current_step(1, &step1) != HAL_OK) return HAL_ERROR;
+    if(stepper_get_current_step(2, &step2) != HAL_OK) return HAL_ERROR;
+    if(stepper_get_current_step(3, &step3) != HAL_OK) return HAL_ERROR;
+
+    q_rad[0] = step1 * K_M1_TO_Q1;
+	q_rad[1] = step2 * K_M2_TO_Q2;
+	q_rad[2] = (step3 * K_M3_TO_Q3) - (step2 * K_M2_TO_Q3);
+
+	//sts
+	if(sts_manager_get_position_all(position_raw) != HAL_OK) return HAL_ERROR;
+	q_rad[3] = ((float)position_raw[0] / STS3215_POSITION_RESOLUTION) * PI_2;
+	q_rad[4] = ((float)position_raw[1] / STS3215_POSITION_RESOLUTION) * PI_2;
+	q_rad[5] = ((float)position_raw[2] / STS3215_POSITION_RESOLUTION) * PI_2;
+
+	return HAL_OK;
+}
+
+

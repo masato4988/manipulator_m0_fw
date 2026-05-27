@@ -211,3 +211,20 @@ HAL_StatusTypeDef sts_manager_is_homing_done(bool *done)
     *done = (sts_home_state == STS_HOME_DONE);
     return HAL_OK;
 }
+
+//HAL_StatusTypeDef sts_manager_get_position(uint8_t axis){
+
+//}
+
+HAL_StatusTypeDef sts_manager_get_position_all(uint16_t position_raw[STS_NUM]){
+	if(sts3215_read_position_raw(&sts_q4, &position_raw[0]) != STS_OK){
+		return HAL_ERROR;
+	}
+	if(sts3215_read_position_raw(&sts_q5, &position_raw[1]) != STS_OK){
+		return HAL_ERROR;
+	}
+	if(sts3215_read_position_raw(&sts_q6, &position_raw[2]) != STS_OK){
+		return HAL_ERROR;
+	}
+	return HAL_OK;
+}

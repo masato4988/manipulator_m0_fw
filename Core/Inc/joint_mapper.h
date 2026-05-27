@@ -38,4 +38,8 @@ HAL_StatusTypeDef joint_mapper_set_target_rad(float q1_target_rad,
 
 HAL_StatusTypeDef joint_mapper_stop_all(void);
 
+HAL_StatusTypeDef joint_mapper_get_rad_all(float q_rad[JOINT_MAPPER_JOINT_COUNT]);
+
+
+
 #endif /* INC_SYNC_MOTION_H_ */

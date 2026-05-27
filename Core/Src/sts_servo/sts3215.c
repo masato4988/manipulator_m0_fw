@@ -8,6 +8,7 @@
 
 #include "sts_servo/sts3215.h"
 #include "sts_servo/sts_packet.h"
+#include "math_utils.h"
 
 static sts_status_t sts_convert_status(sts_bus_status_t s)
 {
@@ -266,6 +267,20 @@ sts_status_t sts3215_stop(sts3215_t *servo)
             servo,
             present_position);
 }
+
+sts_status_t sts3215_read_position_raw(sts3215_t *servo, uint16_t *position_raw)
+{
+    if (servo == NULL || position_raw == NULL) {
+        return STS_ERROR;
+    }
+
+    return sts3215_read_u16(
+        servo,
+		STS_ADDR_PRESENT_POSITION,
+        position_raw
+    );
+}
+
 
 sts_status_t sts3215_is_reached(sts3215_t *servo,
                                 uint16_t target_position,

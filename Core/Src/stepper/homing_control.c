@@ -31,7 +31,7 @@ static const AxisDir_t HOME_DIR[AXIS_COUNT] = {
 };
 
 static const float HOME_FAST_RATE_HZ[AXIS_COUNT] = {
-    800.0f, 800.0f, 800.0f
+    1500.0f, 1500.0f, 1500.0f
 };
 
 static const float HOME_SLOW_RATE_HZ[AXIS_COUNT] = {
@@ -39,7 +39,7 @@ static const float HOME_SLOW_RATE_HZ[AXIS_COUNT] = {
 };
 
 static const int32_t HOME_BACKOFF_STEP[AXIS_COUNT] = {
-    200, 200, 200
+    100, 50, 50
 };
 
 static const int32_t HOME_SW_OFFSET_STEP[AXIS_COUNT] = {
@@ -65,6 +65,39 @@ static void homing_change_state(uint8_t axis, HomingState_t state, uint32_t now_
 {
     g_homing_axis[axis - 1].state = state;
     g_homing_axis[axis - 1].state_start_ms = now_ms;
+
+    switch(state){
+    case HOMING_STATE_IDLE:
+    	printf("HOMING_STATE_IDLE\r\n");
+    	break;
+    case HOMING_STATE_START:			//1
+    	printf("HOMING_STATE_START\r\n");
+    	break;
+    case HOMING_STATE_ESCAPE:		//2
+    	printf("HOMING_STATE_ESCAPE\r\n");
+    	break;
+    case HOMING_STATE_SEARCH_FAST:	//3
+    	printf("HOMING_STATE_SEARCH_FAST\r\n");
+    	break;
+    case HOMING_STATE_BACKOFF:	    //4
+    	printf("HOMING_STATE_BACKOFF\r\n");
+    	break;
+    case HOMING_STATE_SEARCH_SLOW:	//5
+    	printf("HOMING_STATE_SEARCH_SLOW\r\n");
+    	break;
+    case HOMING_STATE_SET_ORIGIN:	//6
+    	printf("HOMING_STATE_SET_ORIGIN\r\n");
+    	break;
+    case HOMING_STATE_DONE:			//7
+    	printf("HOMING_STATE_DONE\r\n\n");
+    	break;
+    case HOMING_STATE_ERROR:			//8
+    	printf("HOMING_STATE_ERROR\r\n");
+    	break;
+    default:
+    	break;
+
+    }
 }
 
 static bool homing_is_timeout(uint8_t axis, uint32_t now_ms, uint32_t timeout_ms)
@@ -114,7 +147,7 @@ HAL_StatusTypeDef homing_control_update(void)
     uint8_t axis;
     uint32_t now_ms = HAL_GetTick();
 
-    bool sw_on;
+    HomeSwitchState_t sw_is_pressed;
     bool is_running;
     int32_t current_step;
     int32_t moved;
@@ -132,14 +165,14 @@ HAL_StatusTypeDef homing_control_update(void)
             break;
 
         case HOMING_STATE_START:
-            ret = home_sw_read(axis, &sw_on);
+            ret = home_sw_read(axis, &sw_is_pressed);
             if (ret != HAL_OK) {
                 g_homing_axis[axis - 1].error = true;
                 homing_change_state(axis, HOMING_STATE_ERROR, now_ms);
                 break;
             }
 
-            if (sw_on) {
+            if (sw_is_pressed == SW_PRESSED) {
                 ret = set_dir(axis, reverse_dir(HOME_DIR[axis - 1]));
                 if (ret != HAL_OK) {
                     g_homing_axis[axis - 1].error = true;
@@ -175,14 +208,14 @@ HAL_StatusTypeDef homing_control_update(void)
             break;
 
         case HOMING_STATE_ESCAPE:
-            ret = home_sw_read(axis, &sw_on);
+            ret = home_sw_read(axis, &sw_is_pressed);
             if (ret != HAL_OK) {
                 g_homing_axis[axis - 1].error = true;
                 homing_change_state(axis, HOMING_STATE_ERROR, now_ms);
                 break;
             }
 
-            if (!sw_on) {
+            if (sw_is_pressed == SW_RELEASED) {
                 stepper_request_stop(axis);
                 ret = stepper_is_running(axis, &is_running);
                 if (ret != HAL_OK) {
@@ -216,14 +249,14 @@ HAL_StatusTypeDef homing_control_update(void)
             break;
 
         case HOMING_STATE_SEARCH_FAST:
-            ret = home_sw_read(axis, &sw_on);
+            ret = home_sw_read(axis, &sw_is_pressed);
             if (ret != HAL_OK) {
                 g_homing_axis[axis - 1].error = true;
                 homing_change_state(axis, HOMING_STATE_ERROR, now_ms);
                 break;
             }
 
-            if (sw_on) {
+            if (sw_is_pressed == SW_PRESSED) {
                 ret = stepper_get_current_step(axis, &current_step);
                 if (ret != HAL_OK) {
                     g_homing_axis[axis - 1].error = true;
@@ -266,7 +299,7 @@ HAL_StatusTypeDef homing_control_update(void)
             break;
 
         case HOMING_STATE_BACKOFF:
-            ret = home_sw_read(axis, &sw_on);
+            ret = home_sw_read(axis, &sw_is_pressed);
             if (ret != HAL_OK) {
                 g_homing_axis[axis - 1].error = true;
                 homing_change_state(axis, HOMING_STATE_ERROR, now_ms);
@@ -283,7 +316,7 @@ HAL_StatusTypeDef homing_control_update(void)
             moved = current_step - g_homing_axis[axis - 1].backoff_start_step;
             if (moved < 0) moved = -moved;
 
-            if ((!sw_on) || (moved >= HOME_BACKOFF_STEP[axis - 1])) {
+            if ((sw_is_pressed == SW_RELEASED) && (moved >= HOME_BACKOFF_STEP[axis - 1])) {
                 stepper_request_stop(axis);
                 ret = stepper_is_running(axis, &is_running);
                 if (ret != HAL_OK) {
@@ -317,14 +350,14 @@ HAL_StatusTypeDef homing_control_update(void)
             break;
 
         case HOMING_STATE_SEARCH_SLOW:
-            ret = home_sw_read(axis, &sw_on);
+            ret = home_sw_read(axis, &sw_is_pressed);
             if (ret != HAL_OK) {
                 g_homing_axis[axis - 1].error = true;
                 homing_change_state(axis, HOMING_STATE_ERROR, now_ms);
                 break;
             }
 
-            if (sw_on) {
+            if (sw_is_pressed == SW_PRESSED) {
                 stepper_request_stop(axis);
                 ret = stepper_is_running(axis, &is_running);
                 if (ret != HAL_OK) {
@@ -361,7 +394,11 @@ HAL_StatusTypeDef homing_control_update(void)
             break;
 
         case HOMING_STATE_ERROR:
-        	Error_Handler();
+            stepper_request_stop(axis);
+			stepper_is_running(axis, &is_running);
+			if(!is_running){
+				Error_Handler();
+			}
             break;
 
         default:

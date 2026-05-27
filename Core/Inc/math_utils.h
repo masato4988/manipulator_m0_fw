@@ -11,6 +11,9 @@
 
 #include <stdint.h>
 
+#define PI (3.14159265358979f)
+#define PI_2 (6.28318530717958f)
+
 #define DEG_TO_RAD_CONST 0.017453292519943295f
 #define RAD_TO_DEG_CONST 57.29577951308232f
 

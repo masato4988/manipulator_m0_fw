@@ -20,6 +20,9 @@
 #define STS_ADDR_PRESENT_POSITION   56
 #define STS_ADDR_PRESENT_TEMP       63
 
+#define STS3215_POSITION_RESOLUTION    4096.0f
+#define STS3215_RAD_TO_DEG             57.2957795131f
+
 
 typedef enum {
     STS_OK = 0,
@@ -46,6 +49,8 @@ sts_status_t sts3215_write_u16(sts3215_t *servo, uint8_t address, uint16_t value
 sts_status_t sts3215_set_torque_enable(sts3215_t *servo, bool enable);
 sts_status_t sts3215_set_goal_position(sts3215_t *servo, uint16_t position);
 sts_status_t sts3215_stop(sts3215_t *servo);
+
+sts_status_t sts3215_read_position_raw(sts3215_t *servo, uint16_t *position_raw);
 
 sts_status_t sts3215_is_reached(sts3215_t *servo,
                                 uint16_t target_position,

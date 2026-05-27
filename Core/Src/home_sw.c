@@ -8,18 +8,18 @@
 #include "system_config.h"
 #include "main.h"
 
-#define HOME_SW_ACTIVE_LEVEL GPIO_PIN_SET
+#define HOME_SW_PRESSED_LEVEL GPIO_PIN_SET
 
-static bool gpio_to_pressed(GPIO_PinState pin)
+static HomeSwitchState_t gpio_to_pressed(GPIO_PinState pin)
 {
-	if(pin == HOME_SW_ACTIVE_LEVEL){
-		return 1;
+	if(pin == HOME_SW_PRESSED_LEVEL){
+		return SW_PRESSED;
 	}else{
-		return 0;
+		return SW_RELEASED;
 	}
 }
 
-HAL_StatusTypeDef home_sw_read(uint8_t axis, bool *is_pressed)
+HAL_StatusTypeDef home_sw_read(uint8_t axis, HomeSwitchState_t *is_pressed)
 {
     GPIO_PinState pin;
 
@@ -44,6 +44,7 @@ HAL_StatusTypeDef home_sw_read(uint8_t axis, bool *is_pressed)
     }
 
     *is_pressed = gpio_to_pressed(pin);
+    //pressed:1/released:0
 
     return HAL_OK;
 }
