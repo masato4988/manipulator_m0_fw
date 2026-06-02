@@ -29,9 +29,17 @@
 #define STS_HOME_POS_Q5        1024
 #define STS_HOME_POS_Q6        2048
 
-#define STS_HOME_TOLERANCE     10
+#define STS_HOME_TOLERANCE  10
 
+#define STS_MOVE_TOLERANCE  10
 
+static bool sts_motion_busy = false;
+
+static uint16_t sts_target_pos[3] = {
+    STS_HOME_POS_Q4,
+    STS_HOME_POS_Q5,
+    STS_HOME_POS_Q6
+};
 
 typedef enum {
     STS_HOME_IDLE = 0,
@@ -127,6 +135,56 @@ HAL_StatusTypeDef sts_manager_stop_all(void)
 
     return HAL_OK;
 }
+
+HAL_StatusTypeDef sts_manager_set_goal_position_all(uint16_t q4,
+                                                    uint16_t q5,
+                                                    uint16_t q6)
+{
+    if (sts3215_set_goal_position(&sts_q4, q4) != STS_OK) return HAL_ERROR;
+    if (sts3215_set_goal_position(&sts_q5, q5) != STS_OK) return HAL_ERROR;
+    if (sts3215_set_goal_position(&sts_q6, q6) != STS_OK) return HAL_ERROR;
+
+    sts_target_pos[0] = q4;
+    sts_target_pos[1] = q5;
+    sts_target_pos[2] = q6;
+
+    sts_motion_busy = true;
+
+    return HAL_OK;
+}
+
+HAL_StatusTypeDef sts_manager_update_motion_all(void)
+{
+    bool reached[3];
+
+    if (!sts_motion_busy) {
+        return HAL_OK;
+    }
+
+    if (sts3215_is_reached(&sts_q4, sts_target_pos[0], STS_MOVE_TOLERANCE, &reached[0]) != STS_OK) {
+        return HAL_ERROR;
+    }
+
+    if (sts3215_is_reached(&sts_q5, sts_target_pos[1], STS_MOVE_TOLERANCE, &reached[1]) != STS_OK) {
+        return HAL_ERROR;
+    }
+
+    if (sts3215_is_reached(&sts_q6, sts_target_pos[2], STS_MOVE_TOLERANCE, &reached[2]) != STS_OK) {
+        return HAL_ERROR;
+    }
+
+    if (reached[0] && reached[1] && reached[2]) {
+        sts_motion_busy = false;
+    }
+
+    return HAL_OK;
+}
+
+bool sts_manager_is_busy_all(void)
+{
+    return sts_motion_busy;
+}
+
 /* =========================
    ３軸原点復帰
    ========================= */

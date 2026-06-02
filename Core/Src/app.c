@@ -106,6 +106,13 @@ HAL_StatusTypeDef app_update(void)
             app_enter_error();
             return HAL_ERROR;
         }
+        if (sts_manager_update_motion_all() != HAL_OK) {
+            app_enter_error();
+            return HAL_ERROR;
+        }
+        if (!joint_mapper_is_busy_all()) {
+        	g_app_state.mode = APP_MODE_IDLE;
+		}
         break;
 
     case APP_MODE_HOMING:

@@ -79,8 +79,11 @@ static void pc_sendf(const char *fmt, ...);
 
 static void process_line(char *line);
 static void trim_line(char *s);
-static bool parse_move_deg(char *args);
 
+//static void pc_send_joint_position(void);
+static bool parse_move_deg(char *args);
+//static bool parse_move_rad(char *args);
+static bool parse_move_mrad(char *args);
 
 /* =========================
    Public functions
@@ -164,11 +167,10 @@ static void pc_sendf(const char *fmt, ...)
     pc_send(tx_buf);
 }
 
-
 static void process_line(char *line)
 {
-	AppHomingSeqState_t state;
-	AppMode_t mode;
+    AppHomingSeqState_t homing_state;
+    AppMode_t app_mode;
 
     trim_line(line);
 
@@ -176,15 +178,77 @@ static void process_line(char *line)
         return;
     }
 
-    if (strncmp(line, "MOVE ", 5) == 0) {
-        if (app_get_homing_seq_state(&state) == HAL_OK) {
-        	if(state != APP_HOMING_SEQ_IDLE){
-				pc_send("ERR NOT_HOMED\r\n");
-				return;
-        	}
+    /* =========================
+       PC / ROS向け 短縮コマンド
+       ========================= */
+
+    // PING: 通信確認
+    if (strcmp(line, "P") == 0 || strcmp(line, "PING") == 0) {
+        pc_send("OK PONG\r\n");
+        return;
+    }
+
+    // STATUS: 状態だけ返す
+    if (strcmp(line, "S") == 0 || strcmp(line, "STATUS") == 0) {
+        app_get_homing_seq_state(&homing_state);
+        app_get_mode(&app_mode);
+
+        if (app_mode == APP_MODE_ERROR) {
+            pc_send("OK STATUS ERROR\r\n");
+            return;
         }
 
-        if (parse_move_deg(line + 5)) {
+        if (app_mode == APP_MODE_HOMING) {
+            pc_send("OK STATUS HOMING\r\n");
+            return;
+        }
+
+        if (app_mode == APP_MODE_JOINT_CONTROL) {
+            pc_send("OK STATUS JOINT_CONTROL\r\n");
+            return;
+        }
+
+        if (homing_state != APP_HOMING_SEQ_IDLE) {
+            pc_send("OK STATUS NOT_HOMED\r\n");
+            return;
+        }
+
+        pc_send("OK STATUS IDLE\r\n");
+        return;
+    }
+
+    // Q: PC向け関節角取得 rad
+    if (strcmp(line, "Q") == 0) {
+        float q[AXIS_NUM];
+
+        if (joint_mapper_get_rad_all(q) != HAL_OK) {
+            pc_send("ERR GET_JOINT\r\n");
+            return;
+        }
+
+        pc_sendf(
+            "OK Q %ld %ld %ld %ld %ld %ld\r\n",
+            (int32_t)(q[0] * 1000.0f),
+            (int32_t)(q[1] * 1000.0f),
+            (int32_t)(q[2] * 1000.0f),
+            (int32_t)(q[3] * 1000.0f),
+            (int32_t)(q[4] * 1000.0f),
+            (int32_t)(q[5] * 1000.0f)
+        );
+        return;
+    }
+
+    // M: PC向け関節移動 rad
+    // 例: M 0.000 0.500 -0.300 0.000 0.000 0.000
+    if (strncmp(line, "M ", 2) == 0) {
+        app_get_homing_seq_state(&homing_state);
+
+        if (homing_state != APP_HOMING_SEQ_IDLE) {
+            pc_send("ERR NOT_HOMED\r\n");
+            return;
+        }
+
+        if (parse_move_mrad(line + 2)) {
             pc_send("OK MOVE\r\n");
         } else {
             pc_send("ERR MOVE_FORMAT\r\n");
@@ -192,7 +256,8 @@ static void process_line(char *line)
         return;
     }
 
-    if (strcmp(line, "HOME") == 0) {
+    // H: ホーミング開始
+    if (strcmp(line, "H") == 0 || strcmp(line, "HOME") == 0) {
         if (app_start_homing_all() == HAL_OK) {
             pc_send("OK HOME\r\n");
         } else {
@@ -201,55 +266,132 @@ static void process_line(char *line)
         return;
     }
 
-    if (strcmp(line, "STOP") == 0) {
-    	joint_mapper_stop_all();
+    // X: 緊急停止/停止
+    if (strcmp(line, "X") == 0 || strcmp(line, "STOP") == 0) {
+        joint_mapper_stop_all();
         pc_send("OK STOP\r\n");
         return;
     }
 
+    // RESET
     if (strcmp(line, "RESET") == 0) {
-    	app_init();
+        app_init();
         pc_send("OK RESET\r\n");
         return;
     }
 
-    if (strcmp(line, "STATUS") == 0) {
-        float q[AXIS_NUM];
-        if(joint_mapper_get_rad_all(q) != HAL_OK){
-        	pc_send("ERROR");
-        	return;
-        }
-        app_get_homing_seq_state(&state);
-        app_get_mode(&mode);
+    /* =========================
+       人間デバッグ向け 長いコマンド
+       ========================= */
 
-//        pc_sendf(
-//            "STATUS homed=%d busy=%d q_deg=%.2f %.2f %.2f %.2f %.2f %.2f\r\n",
-//			state,
-//			mode,
-//            q[0] * 57.2957795f,
-//            q[1] * 57.2957795f,
-//            q[2] * 57.2957795f,
-//            q[3] * 57.2957795f,
-//            q[4] * 57.2957795f,
-//            q[5] * 57.2957795f
-//        );
+    // deg表示用
+    if (strcmp(line, "GET_JOINT") == 0) {
+        float q[AXIS_NUM];
+
+        if (joint_mapper_get_rad_all(q) != HAL_OK) {
+            pc_send("ERR GET_JOINT\r\n");
+            return;
+        }
+
         pc_sendf(
-            "STATUS AppHomingSeqState=%d AppMode=%d q_cdeg=%d %d %d %d %d %d\r\n",
-            state,
-            mode,
-            (int)(q[0] * 57.2957795f * 100.0f),
-            (int)(q[1] * 57.2957795f * 100.0f),
-            (int)(q[2] * 57.2957795f * 100.0f),
-            (int)(q[3] * 57.2957795f * 100.0f),
-            (int)(q[4] * 57.2957795f * 100.0f),
-            (int)(q[5] * 57.2957795f * 100.0f)
+            "OK JOINT_DEG %.2f %.2f %.2f %.2f %.2f %.2f\r\n",
+            q[0] * 57.2957795f,
+            q[1] * 57.2957795f,
+            q[2] * 57.2957795f,
+            q[3] * 57.2957795f,
+            q[4] * 57.2957795f,
+            q[5] * 57.2957795f
         );
+        return;
+    }
+
+    // deg指定移動 デバッグ用
+    // 例: MOVE_DEG 0 30 -20 0 0 0
+    if (strncmp(line, "MOVE_DEG ", 9) == 0) {
+        app_get_homing_seq_state(&homing_state);
+
+        if (homing_state != APP_HOMING_SEQ_DONE) {
+            pc_send("ERR NOT_HOMED\r\n");
+            return;
+        }
+
+        if (parse_move_deg(line + 9)) {
+            pc_send("OK MOVE_DEG\r\n");
+        } else {
+            pc_send("ERR MOVE_DEG_FORMAT\r\n");
+        }
+        return;
+    }
+
+    // 互換用
+    if (strcmp(line, "HELLO") == 0) {
+        pc_send("OK HELLO\r\n");
         return;
     }
 
     pc_send("ERR UNKNOWN_CMD\r\n");
 }
+//static bool parse_move_rad(char *args)
+//{
+//    float q_rad[AXIS_NUM];
+//
+//    int count = sscanf(
+//        args,
+//        "%f %f %f %f %f %f",
+//        &q_rad[0],
+//        &q_rad[1],
+//        &q_rad[2],
+//        &q_rad[3],
+//        &q_rad[4],
+//        &q_rad[5]
+//    );
+//
+//    if (count != AXIS_NUM) {
+//        return false;
+//    }
+//
+//    return app_pc_move_rad(
+//        q_rad[0],
+//        q_rad[1],
+//        q_rad[2],
+//        q_rad[3],
+//        q_rad[4],
+//        q_rad[5],
+//        0.3f,   // dq_max_rad_s
+//        1.0f    // ddq_max_rad_s2
+//    ) == HAL_OK;
+//}
 
+static bool parse_move_mrad(char *args)
+{
+    int32_t q_mrad[AXIS_NUM];
+
+    int count = sscanf(
+        args,
+        "%ld %ld %ld %ld %ld %ld",
+        &q_mrad[0],
+        &q_mrad[1],
+        &q_mrad[2],
+        &q_mrad[3],
+        &q_mrad[4],
+        &q_mrad[5]
+    );
+
+    if (count != AXIS_NUM) {
+        return false;
+    }
+
+    return app_pc_move_rad(
+        q_mrad[0] / 1000.0f,
+        q_mrad[1] / 1000.0f,
+        q_mrad[2] / 1000.0f,
+        q_mrad[3] / 1000.0f,
+        q_mrad[4] / 1000.0f,
+        q_mrad[5] / 1000.0f,
+        0.3f,
+        1.0f
+    ) == HAL_OK;
+}
 
 static bool parse_move_deg(char *args)
 {
@@ -286,6 +428,26 @@ static bool parse_move_deg(char *args)
         1.0f    // ddq_max_rad_s2 仮
     ) == HAL_OK;
 }
+
+//static void pc_send_joint_position(void)
+//{
+//    float q[AXIS_NUM] = {0};
+//
+//    if (joint_mapper_get_rad_all(q) != HAL_OK) {
+//        pc_send("ERR GET_Q\r\n");
+//        return;
+//    }
+//
+//    pc_sendf(
+//        "Q %d %d %d %d %d %d\r\n",
+//        (int)(q[0] * 57.2957795f * 100.0f),
+//        (int)(q[1] * 57.2957795f * 100.0f),
+//        (int)(q[2] * 57.2957795f * 100.0f),
+//        (int)(q[3] * 57.2957795f * 100.0f),
+//        (int)(q[4] * 57.2957795f * 100.0f),
+//        (int)(q[5] * 57.2957795f * 100.0f)
+//    );
+//}
 
 
 static void trim_line(char *s)

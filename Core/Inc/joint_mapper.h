@@ -40,6 +40,6 @@ HAL_StatusTypeDef joint_mapper_stop_all(void);
 
 HAL_StatusTypeDef joint_mapper_get_rad_all(float q_rad[JOINT_MAPPER_JOINT_COUNT]);
 
-
+bool joint_mapper_is_busy_all(void);
 
 #endif /* INC_SYNC_MOTION_H_ */

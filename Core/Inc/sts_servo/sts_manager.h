@@ -21,6 +21,15 @@ extern sts3215_t sts_q4;
 extern sts3215_t sts_q5;
 extern sts3215_t sts_q6;
 
+HAL_StatusTypeDef sts_manager_set_goal_position_all(uint16_t q4,
+                                                    uint16_t q5,
+                                                    uint16_t q6);
+
+HAL_StatusTypeDef sts_manager_update_motion_all(void);
+bool sts_manager_is_busy_all(void);
+
+
+
 HAL_StatusTypeDef sts_manager_start_homing_all(void);
 HAL_StatusTypeDef sts_manager_update_homing_all(void);
 HAL_StatusTypeDef sts_manager_is_homing_done(bool *done);

@@ -52,6 +52,8 @@ m3 = (q3 + (m2 * K_M2_TO_Q3)) / K_M3_TO_Q3
 #define STS_POS_MIN       (0)
 #define STS_POS_MAX       (4095)
 
+#define DEG_TO_RAD(x) ((x) * 0.01745329252f)
+
 typedef struct {
     float q_target_rad[JOINT_MAPPER_JOINT_COUNT];
     float dq_max_rad_s;
@@ -98,6 +100,20 @@ static const float sts_sign[3] = {
 //    STS_Q5_ID,
 //    STS_Q6_ID
 //};
+typedef struct {
+    float min_rad;
+    float max_rad;
+} JointLimit_t;
+
+static const JointLimit_t JointLimits[JOINT_MAPPER_JOINT_COUNT] = {
+    { DEG_TO_RAD(-45.0f),  DEG_TO_RAD(90.0f)  }, // q1
+    { DEG_TO_RAD(-30.0f),  DEG_TO_RAD(105.0f) }, // q2
+    { DEG_TO_RAD(-150.0f), DEG_TO_RAD(170.0f) }, // q3
+    { DEG_TO_RAD(-178.0f), DEG_TO_RAD(178.0f) }, // q4
+    { DEG_TO_RAD(-90.0f),  DEG_TO_RAD(90.0f)  }, // q5
+    { DEG_TO_RAD(-180.0f), DEG_TO_RAD(180.0f) }  // q6
+};
+
 
 /* ---------- 内部補助 ---------- */
 
@@ -209,11 +225,50 @@ static HAL_StatusTypeDef joint_mapper_sts_rad_to_pos(uint8_t index,
     return HAL_OK;
 }
 
+static HAL_StatusTypeDef joint_mapper_sts_pos_to_rad(uint8_t index,
+														uint16_t position,
+														float *q_rad)
+{
+    float servo_rad;
+
+    if (index >= 3 || q_rad == NULL) {
+        return HAL_ERROR;
+    }
+
+    servo_rad =
+        ((float)((int32_t)position - STS_POS_CENTER))
+        / STS_POS_PER_RAD;
+
+    *q_rad =
+        (servo_rad - sts_offset_rad[index])
+        / sts_sign[index];
+
+    return HAL_OK;
+}
+
+
+
+static HAL_StatusTypeDef joint_mapper_check_joint_limit_array(const float q_rad[JOINT_MAPPER_JOINT_COUNT])
+{
+	for (int i = 0; i < JOINT_MAPPER_JOINT_COUNT; i++) {
+
+	    if (q_rad[i] < JointLimits[i].min_rad) {
+	        return HAL_ERROR;
+	    }
+
+	    if (q_rad[i] > JointLimits[i].max_rad) {
+	        return HAL_ERROR;
+	    }
+	}
+
+    return HAL_OK;
+}
+
 /* ---------- 公開関数 ---------- */
 
-HAL_StatusTypeDef joint_mapper_set_sts_targets(float q4_rad,
-                                                       float q5_rad,
-                                                       float q6_rad)
+HAL_StatusTypeDef joint_mapper_set_sts_targets(	float q4_rad,
+												float q5_rad,
+												float q6_rad)
 {
     uint16_t pos[3];
 
@@ -229,18 +284,7 @@ HAL_StatusTypeDef joint_mapper_set_sts_targets(float q4_rad,
         return HAL_ERROR;
     }
 
-    if (joint_mapper_sts_status_to_hal(
-            sts3215_set_goal_position(sts_servo[0], pos[0])) != HAL_OK) {
-        return HAL_ERROR;
-    }
-
-    if (joint_mapper_sts_status_to_hal(
-            sts3215_set_goal_position(sts_servo[1], pos[1])) != HAL_OK) {
-        return HAL_ERROR;
-    }
-
-    if (joint_mapper_sts_status_to_hal(
-            sts3215_set_goal_position(sts_servo[2], pos[2])) != HAL_OK) {
+    if (sts_manager_set_goal_position_all( pos[0], pos[1], pos[2]) != HAL_OK) {
         return HAL_ERROR;
     }
 
@@ -271,7 +315,9 @@ HAL_StatusTypeDef joint_mapper_set_target_rad(float q1_target_rad,
                                                float dq_max_rad_s,
                                                float ddq_max_rad_s2)
 {
-    int32_t target_m1;
+	float q_rad[JOINT_MAPPER_JOINT_COUNT];
+
+	int32_t target_m1;
     int32_t target_m2;
     int32_t target_m3;
 
@@ -283,11 +329,24 @@ HAL_StatusTypeDef joint_mapper_set_target_rad(float q1_target_rad,
     float m2_acc;
     float m3_acc;
 
-    if (dq_max_rad_s <= 0.0f) {
+	if (dq_max_rad_s <= 0.0f) {
         return HAL_ERROR;
     }
 
     if (ddq_max_rad_s2 <= 0.0f) {
+        return HAL_ERROR;
+    }
+
+
+	q_rad[0] = q1_target_rad;
+	q_rad[1] = q2_target_rad;
+	q_rad[2] = q3_target_rad;
+	q_rad[3] = q4_target_rad;
+	q_rad[4] = q5_target_rad;
+	q_rad[5] = q6_target_rad;
+
+
+    if (joint_mapper_check_joint_limit_array(q_rad) != HAL_OK) {
         return HAL_ERROR;
     }
 
@@ -387,11 +446,37 @@ HAL_StatusTypeDef joint_mapper_get_rad_all(float q_rad[JOINT_MAPPER_JOINT_COUNT]
 
 	//sts
 	if(sts_manager_get_position_all(position_raw) != HAL_OK) return HAL_ERROR;
-	q_rad[3] = ((float)position_raw[0] / STS3215_POSITION_RESOLUTION) * PI_2;
-	q_rad[4] = ((float)position_raw[1] / STS3215_POSITION_RESOLUTION) * PI_2;
-	q_rad[5] = ((float)position_raw[2] / STS3215_POSITION_RESOLUTION) * PI_2;
+//	q_rad[3] = ((float)position_raw[0] / STS3215_POSITION_RESOLUTION) * PI_2;
+//	q_rad[4] = ((float)position_raw[1] / STS3215_POSITION_RESOLUTION) * PI_2;
+//	q_rad[5] = ((float)position_raw[2] / STS3215_POSITION_RESOLUTION) * PI_2;
+
+	if (joint_mapper_sts_pos_to_rad(0, position_raw[0], &q_rad[3]) != HAL_OK)
+	    return HAL_ERROR;
+
+	if (joint_mapper_sts_pos_to_rad(1, position_raw[1], &q_rad[4]) != HAL_OK)
+	    return HAL_ERROR;
+
+	if (joint_mapper_sts_pos_to_rad(2, position_raw[2], &q_rad[5]) != HAL_OK)
+	    return HAL_ERROR;
 
 	return HAL_OK;
 }
 
+bool joint_mapper_is_busy_all(void)
+{
+    bool is_busy_1 = false;
+    bool is_busy_2 = false;
+    bool is_busy_3 = false;
 
+    if (axis_is_busy(1, &is_busy_1) != HAL_OK) return true;
+    if (axis_is_busy(2, &is_busy_2) != HAL_OK) return true;
+    if (axis_is_busy(3, &is_busy_3) != HAL_OK) return true;
+
+    if (is_busy_1) return true;
+    if (is_busy_2) return true;
+    if (is_busy_3) return true;
+
+    if (sts_manager_is_busy_all()) return true;
+
+    return false;
+}

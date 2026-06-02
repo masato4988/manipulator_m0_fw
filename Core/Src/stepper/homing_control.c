@@ -66,38 +66,38 @@ static void homing_change_state(uint8_t axis, HomingState_t state, uint32_t now_
     g_homing_axis[axis - 1].state = state;
     g_homing_axis[axis - 1].state_start_ms = now_ms;
 
-    switch(state){
-    case HOMING_STATE_IDLE:
-    	printf("HOMING_STATE_IDLE\r\n");
-    	break;
-    case HOMING_STATE_START:			//1
-    	printf("HOMING_STATE_START\r\n");
-    	break;
-    case HOMING_STATE_ESCAPE:		//2
-    	printf("HOMING_STATE_ESCAPE\r\n");
-    	break;
-    case HOMING_STATE_SEARCH_FAST:	//3
-    	printf("HOMING_STATE_SEARCH_FAST\r\n");
-    	break;
-    case HOMING_STATE_BACKOFF:	    //4
-    	printf("HOMING_STATE_BACKOFF\r\n");
-    	break;
-    case HOMING_STATE_SEARCH_SLOW:	//5
-    	printf("HOMING_STATE_SEARCH_SLOW\r\n");
-    	break;
-    case HOMING_STATE_SET_ORIGIN:	//6
-    	printf("HOMING_STATE_SET_ORIGIN\r\n");
-    	break;
-    case HOMING_STATE_DONE:			//7
-    	printf("HOMING_STATE_DONE\r\n\n");
-    	break;
-    case HOMING_STATE_ERROR:			//8
-    	printf("HOMING_STATE_ERROR\r\n");
-    	break;
-    default:
-    	break;
-
-    }
+//    switch(state){
+//    case HOMING_STATE_IDLE:
+//    	printf("HOMING_STATE_IDLE\r\n");
+//    	break;
+//    case HOMING_STATE_START:			//1
+//    	printf("HOMING_STATE_START\r\n");
+//    	break;
+//    case HOMING_STATE_ESCAPE:		//2
+//    	printf("HOMING_STATE_ESCAPE\r\n");
+//    	break;
+//    case HOMING_STATE_SEARCH_FAST:	//3
+//    	printf("HOMING_STATE_SEARCH_FAST\r\n");
+//    	break;
+//    case HOMING_STATE_BACKOFF:	    //4
+//    	printf("HOMING_STATE_BACKOFF\r\n");
+//    	break;
+//    case HOMING_STATE_SEARCH_SLOW:	//5
+//    	printf("HOMING_STATE_SEARCH_SLOW\r\n");
+//    	break;
+//    case HOMING_STATE_SET_ORIGIN:	//6
+//    	printf("HOMING_STATE_SET_ORIGIN\r\n");
+//    	break;
+//    case HOMING_STATE_DONE:			//7
+//    	printf("HOMING_STATE_DONE\r\n\n");
+//    	break;
+//    case HOMING_STATE_ERROR:			//8
+//    	printf("HOMING_STATE_ERROR\r\n");
+//    	break;
+//    default:
+//    	break;
+//
+//    }
 }
 
 static bool homing_is_timeout(uint8_t axis, uint32_t now_ms, uint32_t timeout_ms)

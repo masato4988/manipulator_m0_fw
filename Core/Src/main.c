@@ -301,7 +301,7 @@ int main(void)
   if(app_set_control_source_pc() != HAL_OK){
 	  Error_Handler();
   }
-  printf("app mode: PC_CONTROL\r\n");
+  printf("APP MODE: PC_CONTROL\r\n");
 
 //  app_sts_test();
 
