@@ -201,3 +201,9 @@ STS3215の複数軸管理を担当
 
 * manipulator_m0_ros（PC側ソフトウェア・ROS2）
 * （将来）Manipulator M0 ハードウェア設計リポジトリ
+---
+
+## ライセンス
+
+MIT License
+
